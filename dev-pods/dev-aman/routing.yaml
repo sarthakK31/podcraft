@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dev-ingress
+  namespace: dev-aman
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: aman.podcraft.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-app
+                port:
+                  number: 80
