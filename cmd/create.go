@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	networkingv1 "k8s.io/api/networking/v1"
+
 	"github.com/spf13/cobra"
 	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -168,6 +170,86 @@ var createCmd = &cobra.Command{
 		}
 
 		fmt.Println("Kubeconfig written to:", fileName)
+
+		// Applying Network Policies
+
+		// Default Deny Ingress
+		defaultDeny := &networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-deny",
+				Namespace: namespace,
+			},
+			Spec: networkingv1.NetworkPolicySpec{
+				PodSelector: metav1.LabelSelector{},
+				PolicyTypes: []networkingv1.PolicyType{
+					networkingv1.PolicyTypeIngress,
+				},
+			},
+		}
+
+		_, _ = clientset.NetworkingV1().
+			NetworkPolicies(namespace).
+			Create(ctx, defaultDeny, metav1.CreateOptions{})
+
+		// Allowing Intra-Namespace Traffic
+		allowInternal := &networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "allow-same-namespace",
+				Namespace: namespace,
+			},
+			Spec: networkingv1.NetworkPolicySpec{
+				PodSelector: metav1.LabelSelector{},
+				Ingress: []networkingv1.NetworkPolicyIngressRule{
+					{
+						From: []networkingv1.NetworkPolicyPeer{
+							{
+								PodSelector: &metav1.LabelSelector{},
+							},
+						},
+					},
+				},
+				PolicyTypes: []networkingv1.PolicyType{
+					networkingv1.PolicyTypeIngress,
+				},
+			},
+		}
+
+		_, _ = clientset.NetworkingV1().
+			NetworkPolicies(namespace).
+			Create(ctx, allowInternal, metav1.CreateOptions{})
+
+		// Allowing Traffic From shared-services Namespace
+		allowShared := &networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "allow-shared-services",
+				Namespace: namespace,
+			},
+			Spec: networkingv1.NetworkPolicySpec{
+				PodSelector: metav1.LabelSelector{},
+				Ingress: []networkingv1.NetworkPolicyIngressRule{
+					{
+						From: []networkingv1.NetworkPolicyPeer{
+							{
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"podcraft.dev/shared": "true",
+									},
+								},
+							},
+						},
+					},
+				},
+				PolicyTypes: []networkingv1.PolicyType{
+					networkingv1.PolicyTypeIngress,
+				},
+			},
+		}
+
+		_, _ = clientset.NetworkingV1().
+			NetworkPolicies(namespace).
+			Create(ctx, allowShared, metav1.CreateOptions{})
+
+		fmt.Println("NetworkPolicies applied")
 
 		_, _ = clientset.RbacV1().RoleBindings(namespace).Create(ctx, roleBinding, metav1.CreateOptions{})
 		fmt.Println("RoleBinding ensured")
