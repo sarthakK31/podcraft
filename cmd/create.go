@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -75,8 +76,25 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		_, _ = clientset.CoreV1().ServiceAccounts(namespace).Create(ctx, sa, metav1.CreateOptions{})
-		fmt.Println("ServiceAccount ensured")
+		existingSA, err := clientset.CoreV1().
+			ServiceAccounts(namespace).
+			Get(ctx, username, metav1.GetOptions{})
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.CoreV1().
+					ServiceAccounts(namespace).
+					Create(ctx, sa, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("ServiceAccount created")
+			} else {
+				panic(err)
+			}
+		} else {
+			fmt.Println("ServiceAccount already exists:", existingSA.Name)
+		}
 
 		// Creating Role
 		role := &rbacv1.Role{
@@ -93,8 +111,42 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		_, _ = clientset.RbacV1().Roles(namespace).Create(ctx, role, metav1.CreateOptions{})
-		fmt.Println("Role ensured")
+		existingRole, err := clientset.RbacV1().
+			Roles(namespace).
+			Get(ctx, username+"-role", metav1.GetOptions{})
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.RbacV1().
+					Roles(namespace).
+					Create(ctx, role, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Role created")
+			} else {
+				panic(err)
+			}
+		} else {
+
+			// Compare rules
+			if !reflect.DeepEqual(existingRole.Rules, role.Rules) {
+
+				existingRole.Rules = role.Rules
+
+				_, err = clientset.RbacV1().
+					Roles(namespace).
+					Update(ctx, existingRole, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("Role updated to match desired state")
+			} else {
+				fmt.Println("Role already matches desired state")
+			}
+		}
 
 		// Creating RoleBinding
 		roleBinding := &rbacv1.RoleBinding{
@@ -115,6 +167,44 @@ var createCmd = &cobra.Command{
 				APIGroup: "rbac.authorization.k8s.io",
 			},
 		}
+		existingRB, err := clientset.RbacV1().
+			RoleBindings(namespace).
+			Get(ctx, username+"-binding", metav1.GetOptions{})
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.RbacV1().
+					RoleBindings(namespace).
+					Create(ctx, roleBinding, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("RoleBinding created")
+			} else {
+				panic(err)
+			}
+		} else {
+
+			if !reflect.DeepEqual(existingRB.Subjects, roleBinding.Subjects) ||
+				!reflect.DeepEqual(existingRB.RoleRef, roleBinding.RoleRef) {
+
+				existingRB.Subjects = roleBinding.Subjects
+				existingRB.RoleRef = roleBinding.RoleRef
+
+				_, err = clientset.RbacV1().
+					RoleBindings(namespace).
+					Update(ctx, existingRB, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("RoleBinding updated")
+			} else {
+				fmt.Println("RoleBinding already matches desired state")
+			}
+		}
+
 		// Creating Token for ServiceAccount
 		tokenRequest := &authv1.TokenRequest{
 			Spec: authv1.TokenRequestSpec{
@@ -193,21 +283,40 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		existing, err := clientset.NetworkingV1().
+		existingDenyNP, err := clientset.NetworkingV1().
 			NetworkPolicies(namespace).
 			Get(ctx, "default-deny", metav1.GetOptions{})
 
 		if err != nil {
-			// Create if not found
-			_, err = clientset.NetworkingV1().
-				NetworkPolicies(namespace).
-				Create(ctx, defaultDeny, metav1.CreateOptions{})
-			if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Create(ctx, defaultDeny, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Default deny policy created")
+			} else {
 				panic(err)
 			}
-			fmt.Println("Default deny policy created")
 		} else {
-			fmt.Println("Default deny already exists:", existing.Name)
+
+			if !reflect.DeepEqual(existingDenyNP.Spec, defaultDeny.Spec) {
+
+				existingDenyNP.Spec = defaultDeny.Spec
+
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Update(ctx, existingDenyNP, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("Default deny policy updated")
+			} else {
+				fmt.Println("Default deny policy already matches desired state")
+			}
 		}
 
 		// Allowing Intra-Namespace Traffic
@@ -233,9 +342,41 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		_, _ = clientset.NetworkingV1().
+		existingInternalNP, err := clientset.NetworkingV1().
 			NetworkPolicies(namespace).
-			Create(ctx, allowInternal, metav1.CreateOptions{})
+			Get(ctx, "allow-same-namespace", metav1.GetOptions{})
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Create(ctx, allowInternal, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Intra Namespace Traffic Policy created")
+			} else {
+				panic(err)
+			}
+		} else {
+
+			if !reflect.DeepEqual(existingInternalNP.Spec, allowInternal.Spec) {
+
+				existingInternalNP.Spec = allowInternal.Spec
+
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Update(ctx, existingInternalNP, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("Intra Namespace Traffic policy updated")
+			} else {
+				fmt.Println("Intra Namespace Traffic policy already matches desired state")
+			}
+		}
 
 		// Allowing Traffic From shared-services Namespace
 		allowShared := &networkingv1.NetworkPolicy{
@@ -264,13 +405,45 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		_, _ = clientset.NetworkingV1().
+		existingAllowNP, err := clientset.NetworkingV1().
 			NetworkPolicies(namespace).
-			Create(ctx, allowShared, metav1.CreateOptions{})
+			Get(ctx, "allow-shared-services", metav1.GetOptions{})
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Create(ctx, allowShared, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Shared Namespace Traffic Policy created")
+			} else {
+				panic(err)
+			}
+		} else {
+
+			if !reflect.DeepEqual(existingAllowNP.Spec, allowShared.Spec) {
+
+				existingAllowNP.Spec = allowShared.Spec
+
+				_, err = clientset.NetworkingV1().
+					NetworkPolicies(namespace).
+					Update(ctx, existingAllowNP, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("Shared Namespace Traffic policy updated")
+			} else {
+				fmt.Println("Shared Namespace Traffic policy already matches desired state")
+			}
+		}
 
 		fmt.Println("NetworkPolicies applied")
 
-		// 7️⃣ Apply ResourceQuota (Hardcoded Defaults)
+		// Applying ResourceQuota (Hardcoded Defaults)
 
 		quota := &corev1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
@@ -292,21 +465,55 @@ var createCmd = &cobra.Command{
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
+
 				_, err = clientset.CoreV1().
 					ResourceQuotas(namespace).
 					Create(ctx, quota, metav1.CreateOptions{})
+
 				if err != nil {
 					panic(err)
 				}
+
 				fmt.Println("ResourceQuota created")
+
 			} else {
 				panic(err)
 			}
 		} else {
-			fmt.Println("ResourceQuota already exists:", existingQuota.Name)
+
+			// Compare existing values
+			desiredCPU := resource.MustParse(cpuLimit)
+			desiredMemory := resource.MustParse(memoryLimit)
+			desiredPods := resource.MustParse(fmt.Sprintf("%d", maxPods))
+
+			currentCPU := existingQuota.Spec.Hard[corev1.ResourceLimitsCPU]
+			currentMemory := existingQuota.Spec.Hard[corev1.ResourceLimitsMemory]
+			currentPods := existingQuota.Spec.Hard[corev1.ResourcePods]
+
+			if currentCPU.Cmp(desiredCPU) != 0 ||
+				currentMemory.Cmp(desiredMemory) != 0 ||
+				currentPods.Cmp(desiredPods) != 0 {
+
+				existingQuota.Spec.Hard[corev1.ResourceLimitsCPU] = desiredCPU
+				existingQuota.Spec.Hard[corev1.ResourceLimitsMemory] = desiredMemory
+				existingQuota.Spec.Hard[corev1.ResourcePods] = desiredPods
+
+				_, err = clientset.CoreV1().
+					ResourceQuotas(namespace).
+					Update(ctx, existingQuota, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("ResourceQuota updated to match desired state")
+
+			} else {
+				fmt.Println("ResourceQuota already matches desired state")
+			}
 		}
 
-		// 8️⃣ Apply LimitRange
+		// Applying LimitRange
 
 		limitRange := &corev1.LimitRange{
 			ObjectMeta: metav1.ObjectMeta{
@@ -334,19 +541,41 @@ var createCmd = &cobra.Command{
 			},
 		}
 
-		_, err = clientset.CoreV1().
+		existingLR, err := clientset.CoreV1().
 			LimitRanges(namespace).
-			Create(ctx, limitRange, metav1.CreateOptions{})
+			Get(ctx, "dev-limitrange", metav1.GetOptions{})
 
 		if err != nil {
-			fmt.Println("LimitRange already exists or error:", err)
+			if apierrors.IsNotFound(err) {
+				_, err = clientset.CoreV1().
+					LimitRanges(namespace).
+					Create(ctx, limitRange, metav1.CreateOptions{})
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("LimitRange created")
+			} else {
+				panic(err)
+			}
 		} else {
-			fmt.Println("LimitRange applied")
-		}
-		//**************************
 
-		_, _ = clientset.RbacV1().RoleBindings(namespace).Create(ctx, roleBinding, metav1.CreateOptions{})
-		fmt.Println("RoleBinding ensured")
+			if !reflect.DeepEqual(existingLR.Spec, limitRange.Spec) {
+
+				existingLR.Spec = limitRange.Spec
+
+				_, err = clientset.CoreV1().
+					LimitRanges(namespace).
+					Update(ctx, existingLR, metav1.UpdateOptions{})
+
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Println("LimitRange updated")
+			} else {
+				fmt.Println("LimitRange already matches desired state")
+			}
+		}
 
 		fmt.Println("Developer environment ready:", namespace)
 	},
