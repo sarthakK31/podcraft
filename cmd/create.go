@@ -105,7 +105,7 @@ var createCmd = &cobra.Command{
 			Rules: []rbacv1.PolicyRule{
 				{
 					APIGroups: []string{"", "apps"},
-					Resources: []string{"pods", "services", "deployments"},
+					Resources: []string{"pods", "services", "deployments", "persistentvolumeclaims"},
 					Verbs:     []string{"get", "list", "watch", "create", "delete", "update"},
 				},
 			},
@@ -452,9 +452,10 @@ var createCmd = &cobra.Command{
 			},
 			Spec: corev1.ResourceQuotaSpec{
 				Hard: corev1.ResourceList{
-					corev1.ResourcePods:         resource.MustParse(fmt.Sprintf("%d", maxPods)),
-					corev1.ResourceLimitsCPU:    resource.MustParse(cpuLimit),
-					corev1.ResourceLimitsMemory: resource.MustParse(memoryLimit),
+					corev1.ResourcePods:            resource.MustParse(fmt.Sprintf("%d", maxPods)),
+					corev1.ResourceLimitsCPU:       resource.MustParse(cpuLimit),
+					corev1.ResourceLimitsMemory:    resource.MustParse(memoryLimit),
+					corev1.ResourceRequestsStorage: resource.MustParse("5Gi"),
 				},
 			},
 		}
@@ -485,18 +486,22 @@ var createCmd = &cobra.Command{
 			desiredCPU := resource.MustParse(cpuLimit)
 			desiredMemory := resource.MustParse(memoryLimit)
 			desiredPods := resource.MustParse(fmt.Sprintf("%d", maxPods))
+			desiredStorage := resource.MustParse("5Gi")
 
 			currentCPU := existingQuota.Spec.Hard[corev1.ResourceLimitsCPU]
 			currentMemory := existingQuota.Spec.Hard[corev1.ResourceLimitsMemory]
 			currentPods := existingQuota.Spec.Hard[corev1.ResourcePods]
+			currentStorage := existingQuota.Spec.Hard[corev1.ResourceRequestsStorage]
 
 			if currentCPU.Cmp(desiredCPU) != 0 ||
 				currentMemory.Cmp(desiredMemory) != 0 ||
-				currentPods.Cmp(desiredPods) != 0 {
+				currentPods.Cmp(desiredPods) != 0 ||
+				currentStorage.Cmp(desiredStorage) != 0 {
 
 				existingQuota.Spec.Hard[corev1.ResourceLimitsCPU] = desiredCPU
 				existingQuota.Spec.Hard[corev1.ResourceLimitsMemory] = desiredMemory
 				existingQuota.Spec.Hard[corev1.ResourcePods] = desiredPods
+				existingQuota.Spec.Hard[corev1.ResourceRequestsStorage] = desiredStorage
 
 				_, err = clientset.CoreV1().
 					ResourceQuotas(namespace).
@@ -578,6 +583,11 @@ var createCmd = &cobra.Command{
 		}
 
 		fmt.Println("Developer environment ready:", namespace)
+		fmt.Println("\nStorage Policy:")
+		fmt.Println("- Pods use ephemeral storage by default.")
+		fmt.Println("- To persist data, create a PersistentVolumeClaim (PVC).")
+		fmt.Println("- Maximum storage allowed in this namespace: 5Gi.")
+		fmt.Println("- Deleting the namespace deletes all PVCs and data.")
 	},
 }
 
