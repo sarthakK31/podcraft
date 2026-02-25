@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var Version = "v0.1.0"
+
 var kubeconfig string
 
 // rootCmd represents the base command when called without any subcommands
