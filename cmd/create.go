@@ -5,12 +5,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"podcraft/pkg/kube"
-	"podcraft/pkg/kubeconfigpkg"
-	"podcraft/pkg/namespacepkg"
-	"podcraft/pkg/network"
-	"podcraft/pkg/quota"
-	"podcraft/pkg/rbac"
+	"github.com/sarthakK31/podcraft/pkg/kube"
+	"github.com/sarthakK31/podcraft/pkg/kubeconfigpkg"
+	"github.com/sarthakK31/podcraft/pkg/namespacepkg"
+	"github.com/sarthakK31/podcraft/pkg/network"
+	"github.com/sarthakK31/podcraft/pkg/quota"
+	"github.com/sarthakK31/podcraft/pkg/rbac"
 )
 
 var cpuLimit string
