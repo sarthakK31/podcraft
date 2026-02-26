@@ -91,9 +91,17 @@ Developers receive restricted kubeconfig files.
 
 ## Installation
 
+Directly download via Go-install
+
+```
+go install github.com/sarthakK31/podcraft@latest
+```
+
+OR
+
 Clone repository:
 
-```bash
+```
 git clone https://github.com/sarthakK31/podcraft.git
 cd podcraft
 ```
@@ -128,13 +136,13 @@ PodCraft is cluster-agnostic and does not assume:
 ### Create Developer Environment
 
 ```
-./podcraft create aman
+podcraft create aman
 ```
 
 With custom limits:
 
 ```
-./podcraft create aman \
+podcraft create aman \
   --cpu=4 \
   --memory=4Gi \
   --max-pods=20
@@ -157,7 +165,7 @@ aman.kubeconfig
 ### Delete Developer Environment
 
 ```
-./podcraft delete aman
+podcraft delete aman
 ```
 
 Deletes the namespace and all associated resources.
@@ -167,7 +175,7 @@ Deletes the namespace and all associated resources.
 ### Describe Developer Namespace
 
 ```
-./podcraft describe aman
+podcraft describe aman
 ```
 
 Displays:
@@ -183,7 +191,7 @@ Displays:
 After admin runs:
 
 ```
-./podcraft create aman
+podcraft create aman
 ```
 
 Developer receives:
@@ -194,7 +202,7 @@ aman.kubeconfig
 
 Developer uses:
 
-```bash
+```
 kubectl --kubeconfig=aman.kubeconfig get pods
 ```
 
@@ -232,9 +240,11 @@ spec:
       storage: 1Gi
 ```
 
-Storage quota per namespace: **5Gi**
+Storage quota per namespace: **5Gi**. 
 
 If exceeded, PVC creation fails.
+
+If you need a different limit, feel free to modify the limit in the code. For now its hardcoded.
 
 ---
 
@@ -260,6 +270,9 @@ cmd/
   create.go
   delete.go
   describe.go
+  list.go
+  root.go
+  version.go
 
 pkg/
   kube/
