@@ -50,6 +50,11 @@ Each namespace gets:
 The admin runs PodCraft.
 Developers receive restricted kubeconfig files.
 
+<p align="center">
+  <img src="assets/architecture.png" width="700" alt="Architecture Diagram"/>
+</p>
+
+
 ---
 
 ## Features
@@ -159,6 +164,7 @@ ResourceQuota
 LimitRange
 aman.kubeconfig
 ```
+![user-creation](assets/create.png)
 
 ---
 
@@ -183,6 +189,8 @@ Displays:
 - Quota usage
 - Pods
 - NetworkPolicies
+
+![user-describe](assets/describe.png)
 
 ---
 
@@ -218,6 +226,19 @@ They cannot:
 - Modify quotas
 - Modify RBAC
 - Modify network policies
+
+In the snapshots below, you can see how the namespace is created, the dev kubeconfig can not see other namespaces, quotas, limits and network policies are also created.  
+
+
+<p align="center">
+  <img src="assets/namespace-creation.png" width="300" alt="namespace is created"/>
+  &nbsp; &nbsp; &nbsp;
+  <img src="assets/quota-creation.png" width="680" alt="quotas, limits creation"/>
+  &nbsp; &nbsp; &nbsp;
+  <img src="assets/isolated-namespace.png" width="1100" alt="the dev kubeconfig can not see other namespaces"/>
+  &nbsp; &nbsp; &nbsp;
+  <img src="assets/network-policy-creation.png" width="600" alt="network policies are also created"/>
+</p>
 
 ---
 
